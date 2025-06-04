@@ -1,0 +1,6 @@
+@ConfirmMe_HostAddress = http://localhost:5293
+
+GET {{ConfirmMe_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
