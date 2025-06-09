@@ -8,11 +8,13 @@
         public int PositionId { get; set; }
         public string Status { get; set; } 
         public int OrderIndex { get; set; }
-        public string Notes { get; set; }
+        public string Remark { get; set; } = "";
         public DateTime? ApprovedAt { get; set; }
 
         //QR exp & udh dipake
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        // ✅ Token QR untuk approval
+        public string QrToken { get; set; }
+        public DateTime? QrTokenGeneratedAt { get; set; } 
         public bool IsQrUsed { get; set; } = false;
         public DateTime? QrUsedAt { get; set; }
 

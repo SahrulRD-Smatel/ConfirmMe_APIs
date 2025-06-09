@@ -352,15 +352,14 @@ namespace ConfirmMe.Controllers
             }
         }
 
-        //endpoint QR ini belum dibuat untuk saat QR-nya arah ke URL API atau halaman web yang memproses approval
-        //secara otomatis setelah scan, supaya user cukup scan dan langsung approve/reject. JADI MASIH PAKE APK KHUSUS
+
         [AllowAnonymous]
-        [HttpPost("qr-action")]
+        [HttpPost("approval-via-qr")]
         public async Task<IActionResult> ApproveViaQrCode([FromBody] QrApprovalDto dto)
         {
             try
             {
-                if (dto == null || dto.ApprovalRequestId <= 0 || dto.ApproverId <= 0)
+                if (dto == null || dto.ApprovalRequestId <= 0 || dto.ApproverId <= 0 || dto.FlowId <= 0)
                     return BadRequest("QR code data is incomplete.");
 
                 if (!Enum.TryParse<ActionType>(dto.Action, true, out var actionType))
@@ -369,31 +368,35 @@ namespace ConfirmMe.Controllers
                 if (actionType != ActionType.Approved && actionType != ActionType.Reject)
                     return BadRequest("Only Approved or Reject actions are allowed via QR.");
 
-                var flows = (await _approvalFlowService.GetApprovalFlowsByRequestIdAsync(dto.ApprovalRequestId))
-                            .OrderBy(f => f.OrderIndex).ToList();
+                var flow = await _approvalFlowService.GetByIdAsync(dto.FlowId);
+                if (flow == null)
+                    return NotFound("Approval step not found.");
 
-                var currentStep = flows.FirstOrDefault(f => f.Status != "Approved" && f.Status != "Rejected");
+                if (flow.ApprovalRequestId != dto.ApprovalRequestId || flow.ApproverId != dto.ApproverId.ToString())
+                    return Forbid("QR code does not match the approver or request.");
 
-                if (currentStep == null)
-                    return BadRequest("Request is already fully processed.");
+                if (flow.Status == "Approved" || flow.Status == "Rejected")
+                    return BadRequest("This step has already been processed.");
 
-                if (currentStep.ApproverId != dto.ApproverId.ToString())
-                    return Forbid("QR code is not valid for this approver or step.");
+                // Token check
+                if (string.IsNullOrEmpty(dto.QrToken) || dto.QrToken != flow.QrToken)
+                    return Forbid("QR token is invalid or has expired.");
 
-                // 🔐 Security Checks
-                if (currentStep.IsQrUsed)
+                if (flow.IsQrUsed)
                     return BadRequest("QR code has already been used.");
 
-                if (currentStep.CreatedAt < DateTime.UtcNow.AddHours(-1))
+                if (flow.QrTokenGeneratedAt == null || flow.QrTokenGeneratedAt.Value.AddHours(1) < DateTime.UtcNow)
                     return BadRequest("QR code has expired.");
 
-                // ✅ Approve or Reject
-                await _approvalFlowService.UpdateApprovalFlowStatusAsync(currentStep.Id, actionType.ToString());
 
-                // 🚩 Tandai QR sudah digunakan
-                currentStep.IsQrUsed = true;
-                currentStep.QrUsedAt = DateTime.UtcNow;
-                await _approvalFlowService.UpdateAsync(currentStep);
+                // ✅ Update approval status
+                await _approvalFlowService.UpdateApprovalFlowStatusAsync(flow.Id, actionType.ToString());
+
+                // ✅ Tandai QR sudah digunakan dan simpan Remark
+                flow.IsQrUsed = true;
+                flow.QrUsedAt = DateTime.UtcNow;
+                flow.Remark = dto.Remark;
+                await _approvalFlowService.UpdateAsync(flow);
 
                 // 📝 Audit Trail
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
@@ -410,19 +413,20 @@ namespace ConfirmMe.Controllers
                     approverId: dto.ApproverId.ToString(),
                     role: "Approver",
                     actionType: actionType,
-                    remark: $"{dto.Action} via QR",
+                    remark: dto.Remark ?? $"{dto.Action} via QR",
                     ipAddress: ipAddress,
                     userAgent: userAgent
                 );
 
-                // 🚫 Jika ditolak
+                // Jika ditolak
                 if (actionType == ActionType.Reject)
                 {
                     await _approvalRequestService.UpdateApprovalStatusAsync(dto.ApprovalRequestId, "Rejected");
                     return Ok(new { message = "Request rejected via QR." });
                 }
 
-                // ✅ Jika semua sudah disetujui
+                // Jika semua sudah disetujui
+                var flows = (await _approvalFlowService.GetApprovalFlowsByRequestIdAsync(dto.ApprovalRequestId)).ToList();
                 var approvedCount = flows.Count(f => f.Status == "Approved");
                 if (approvedCount == flows.Count)
                 {
@@ -437,7 +441,6 @@ namespace ConfirmMe.Controllers
                 return StatusCode(500, $"Internal error: {ex.Message}");
             }
         }
-
 
 
         [Authorize(Roles = "Manager, HRD, Direktur")]

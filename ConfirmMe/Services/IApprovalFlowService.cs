@@ -12,7 +12,7 @@ namespace ConfirmMe.Services
         Task<List<ApprovalFlow>> GetApprovalFlowsByTypeAsync(string approvalType);
         Task<List<ApprovalFlow>> GetPendingApprovalsForUserAsync(string userId);
         Task UpdateAsync(ApprovalFlow flow);
-
+        Task<ApprovalFlow> GetByIdAsync(int id);
 
     }
 }

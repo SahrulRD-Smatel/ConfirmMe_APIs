@@ -44,7 +44,7 @@ namespace ConfirmMe.Services
                 PositionId = positionId,
                 Status = "Pending",
                 OrderIndex = orderIndex,  // Correcting OrderIndex here
-                Notes = "",
+                Remark = "",
                 ApprovedAt = null
             };
 
@@ -53,6 +53,12 @@ namespace ConfirmMe.Services
 
             return approvalFlow;
         }
+
+        public async Task<ApprovalFlow> GetByIdAsync(int id)
+        {
+            return await _context.ApprovalFlows.FindAsync(id);
+        }
+
 
         // Mengupdate status ApprovalFlow
         public async Task<bool> UpdateApprovalFlowStatusAsync(int approvalFlowId, string status)

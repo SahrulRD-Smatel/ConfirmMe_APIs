@@ -1,10 +1,9 @@
-﻿using ConfirmMe.Services;
+﻿using ConfirmMe.Dto;
+using ConfirmMe.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using System;
+using System.Text.Json;
 using ZXing;
-using System.Linq;
 
 namespace ConfirmMe.Controllers
 {
@@ -14,15 +13,18 @@ namespace ConfirmMe.Controllers
     public class BarcodeController : ControllerBase
     {
         private readonly IBarcodeService _barcodeService;
+        private readonly IApprovalFlowService _approvalFlowService;
         private readonly ILogger<BarcodeController> _logger;
 
-        public BarcodeController(IBarcodeService barcodeService, ILogger<BarcodeController> logger)
+
+        public BarcodeController(IBarcodeService barcodeService, IApprovalFlowService approvalFlowService, ILogger<BarcodeController> logger)
         {
             _barcodeService = barcodeService;
+            _approvalFlowService = approvalFlowService;
             _logger = logger;
         }
 
-        [HttpGet("generate")]
+        [HttpGet("generate-label-barcode")]
         public IActionResult GenerateBarcode([FromQuery] string data,
                                              [FromQuery] int width = 300,
                                              [FromQuery] int height = 150,
@@ -75,6 +77,65 @@ namespace ConfirmMe.Controllers
                 return StatusCode(500, "Terjadi kesalahan internal saat menghasilkan barcode.");
             }
         }
+
+
+        [HttpGet("generate-qr")]
+        public async Task<IActionResult> GenerateApprovalQr([FromQuery] int flowId)
+        {
+            foreach (var claim in User.Claims)
+            {
+                _logger.LogInformation($"Claim type: {claim.Type} - Value: {claim.Value}");
+            }
+
+            var userRole = User.Claims.FirstOrDefault(c => c.Type == "role")?.Value
+                ?? User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value;
+
+            var userId = User.Claims.FirstOrDefault(c => c.Type == "sub")?.Value
+                ?? User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? User.Claims.FirstOrDefault(c => c.Type == "nameid")?.Value;
+
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogWarning("User ID claim 'sub' missing");
+                return Unauthorized("User ID is missing.");
+            }
+
+            if (!HasPrintPermission(userRole))
+            {
+                _logger.LogWarning($"Unauthorized role attempt: {userRole}");
+                return Forbid("Unauthorized role");
+            }
+
+            var flow = await _approvalFlowService.GetByIdAsync(flowId);
+            if (flow == null) return NotFound("Flow not found");
+
+            // Generate token
+            var qrToken = Guid.NewGuid().ToString("N");
+            flow.QrToken = qrToken;
+            flow.QrTokenGeneratedAt = DateTime.UtcNow;
+            flow.IsQrUsed = false;
+            await _approvalFlowService.UpdateAsync(flow);
+
+            //// Encode payload kalo mau ketika scan QR langsung approve, approve cepat
+            //var payload = new QrPayloadDto
+            //{
+            //    ApprovalRequestId = flow.ApprovalRequestId,
+            //    FlowId = flow.Id,
+            //    Action = "Approve",
+            //    GeneratedBy = userId,
+            //    QrToken = qrToken
+            //};
+            //var qrData = JsonSerializer.Serialize(payload);
+
+            string frontendBaseUrl = "https://localhost:32771/approval"; // sesuaikan dengan URL frontend
+            var qrUrl = $"{frontendBaseUrl}?flowId={flow.Id}&qrToken={qrToken}";
+
+            var barcodeImage = _barcodeService.GenerateBarcode(qrUrl, BarcodeFormat.QR_CODE, 300, 300);
+            return File(barcodeImage, "image/png");
+
+        }
+
 
         // Memeriksa apakah pengguna memiliki izin untuk mencetak berdasarkan jabatan
         private bool HasPrintPermission(string role)

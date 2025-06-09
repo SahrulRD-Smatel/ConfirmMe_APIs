@@ -9,7 +9,7 @@ namespace ConfirmMe.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "HRD, Admin")]
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
