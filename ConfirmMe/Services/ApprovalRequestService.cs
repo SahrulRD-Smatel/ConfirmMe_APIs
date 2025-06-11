@@ -153,6 +153,8 @@ namespace ConfirmMe.Services
                 .Include(ar => ar.RequestedByUser)
                 .Include(ar => ar.ApprovalFlows)
                     .ThenInclude(af => af.Position)
+                .Include(ar => ar.ApprovalFlows)
+                    .ThenInclude(af => af.Approver)
                 .FirstOrDefaultAsync(ar => ar.Id == id);
 
             return request;

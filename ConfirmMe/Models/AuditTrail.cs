@@ -5,7 +5,7 @@ public enum ActionType
     Submit,
     Withdraw,
     Approved,
-    Reject,
+    Rejected,
     Resubmit,
     Revise,
     Delete

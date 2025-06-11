@@ -42,9 +42,12 @@ namespace ConfirmMe.Services
             return result;
         }
 
-        public async Task<List<ApprovalTypeStatDto>> GetApprovalStatisticsAsync(string userId, string role)
+        public async Task<List<ApprovalTypeStatDto>> GetMonthlyApprovalByTypeAsync(string userId, string role)
         {
-            var query = _context.ApprovalRequests.AsQueryable();
+            var currentYear = DateTime.Now.Year;
+            var query = _context.ApprovalRequests
+                .Where(r => r.CreatedAt.Year == currentYear)
+                .AsQueryable();
 
             if (role == "Staff")
             {
@@ -53,20 +56,60 @@ namespace ConfirmMe.Services
             else if (role == "HRD" || role == "Manager" || role == "Director")
             {
                 query = query.Where(r =>
-                    r.ApprovalFlows.Any(f => f.ApproverId == userId && f.Status == "Pending"));
+                    r.ApprovalFlows.Any(f => f.ApproverId == userId));
             }
 
-            var stats = await query
-                .GroupBy(r => r.ApprovalType.Name)
+            var rawData = await query
+                .Select(r => new
+                {
+                    r.CreatedAt.Month,
+                    r.CreatedAt.Year,
+                    ApprovalType = r.ApprovalType.Name,
+                    Status = r.CurrentStatus // status di ApprovalRequest (Approved, Rejected, Pending)
+                })
+                .GroupBy(x => new { x.Month, x.Year, x.ApprovalType, x.Status })
                 .Select(g => new ApprovalTypeStatDto
                 {
-                    Type = g.Key,
+                    Month = g.Key.Month,
+                    Year = g.Key.Year,
+                    ApprovalType = g.Key.ApprovalType,
+                    Status = g.Key.Status,
                     Count = g.Count()
                 })
                 .ToListAsync();
 
-            return stats;
+            // Ambil semua kombinasi ApprovalType & Status dari raw data
+            var approvalTypes = rawData.Select(x => x.ApprovalType).Distinct().ToList();
+            var statuses = new[] { "Pending", "Approved", "Rejected" };
+
+            // Buat data default 12 bulan x approval type x status
+            var result = new List<ApprovalTypeStatDto>();
+            for (int month = 1; month <= 12; month++)
+            {
+                foreach (var type in approvalTypes)
+                {
+                    foreach (var status in statuses)
+                    {
+                        var match = rawData.FirstOrDefault(x =>
+                            x.Month == month &&
+                            x.ApprovalType == type &&
+                            x.Status == status);
+
+                        result.Add(new ApprovalTypeStatDto
+                        {
+                            Month = month,
+                            Year = currentYear,
+                            ApprovalType = type,
+                            Status = status,
+                            Count = match?.Count ?? 0
+                        });
+                    }
+                }
+            }
+
+            return result;
         }
+
 
         public async Task<int> GetRequestsWaitingForApprovalAsync(string userId, string role)
         {

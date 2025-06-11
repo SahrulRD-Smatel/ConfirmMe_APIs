@@ -274,7 +274,7 @@ namespace ConfirmMe.Controllers
                     actionDetails: $"Approver: {dto.ApproverId}, Status: {dto.Status}",
                     approverId: dto.ApproverId,
                     role: "Approver",
-                    actionType: dto.Status == "Approved" ? ActionType.Approved : ActionType.Reject,
+                    actionType: dto.Status == "Approved" ? ActionType.Approved : ActionType.Rejected,
                     remark: "Approved after review"
                 );
 
@@ -365,7 +365,7 @@ namespace ConfirmMe.Controllers
                 if (!Enum.TryParse<ActionType>(dto.Action, true, out var actionType))
                     return BadRequest("Invalid action. Use Approved or Reject.");
 
-                if (actionType != ActionType.Approved && actionType != ActionType.Reject)
+                if (actionType != ActionType.Approved && actionType != ActionType.Rejected)
                     return BadRequest("Only Approved or Reject actions are allowed via QR.");
 
                 var flow = await _approvalFlowService.GetByIdAsync(dto.FlowId);
@@ -419,7 +419,7 @@ namespace ConfirmMe.Controllers
                 );
 
                 // Jika ditolak
-                if (actionType == ActionType.Reject)
+                if (actionType == ActionType.Rejected)
                 {
                     await _approvalRequestService.UpdateApprovalStatusAsync(dto.ApprovalRequestId, "Rejected");
                     return Ok(new { message = "Request rejected via QR." });
