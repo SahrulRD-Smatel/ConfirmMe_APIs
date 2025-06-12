@@ -3,6 +3,7 @@
 public enum ActionType
 {
     Submit,
+    Pending,
     Withdraw,
     Approved,
     Rejected,

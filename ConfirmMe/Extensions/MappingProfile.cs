@@ -17,7 +17,9 @@ namespace ConfirmMe.Extensions
                 .ForMember(dest => dest.CurrentStep, opt => opt.MapFrom(src => src.OrderIndex))
                 .ForMember(dest => dest.TotalSteps, opt => opt.MapFrom(src => src.ApprovalRequest.ApprovalFlows.Count))
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status))
-                .ForMember(dest => dest.ApprovalTypeName, opt => opt.MapFrom(src => src.ApprovalRequest.ApprovalType.Name));
+                .ForMember(dest => dest.ApprovalTypeName, opt => opt.MapFrom(src => src.ApprovalRequest.ApprovalType.Name))
+                .ForMember(dest => dest.ApprovalRequestId, opt => opt.MapFrom(src => src.Id));
+
 
             CreateMap<ApplicationUser, UserDto>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))

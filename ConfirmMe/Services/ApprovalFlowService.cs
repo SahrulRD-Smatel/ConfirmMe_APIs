@@ -44,6 +44,7 @@ namespace ConfirmMe.Services
                 PositionId = positionId,
                 Status = "Pending",
                 OrderIndex = orderIndex,  // Correcting OrderIndex here
+                QrToken = Guid.NewGuid().ToString(),
                 Remark = "",
                 ApprovedAt = null
             };

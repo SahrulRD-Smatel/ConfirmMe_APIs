@@ -187,28 +187,80 @@ namespace ConfirmMe.Services
             return request;
         }
 
-        public async Task<bool> ApproveRequestAsync(int id, string approverId, string status)
+        //public async Task<bool> ApproveRequestAsync(int id, string approverId, string status)
+        //{
+        //    var request = await _context.ApprovalRequests
+        //        .Include(ar => ar.ApprovalFlows)
+        //        .FirstOrDefaultAsync(ar => ar.Id == id);
+
+        //    if (request == null)
+        //        throw new ArgumentException("Approval Request tidak ditemukan");
+
+        //    var approvalFlow = request.ApprovalFlows.FirstOrDefault(af => af.ApproverId == approverId);
+        //    if (approvalFlow == null)
+        //        throw new ArgumentException("Approver tidak ditemukan di flow ini");
+
+        //    approvalFlow.Status = status;
+        //    approvalFlow.ApprovedAt = DateTime.UtcNow;
+
+        //    request.CurrentStatus = request.ApprovalFlows.All(af => af.Status == "Approved")
+        //        ? "Approved"
+        //        : "In Progress";
+
+        //    await _context.SaveChangesAsync();
+        //    return true;
+        //}
+
+
+        public async Task<bool> ApproveRequestAsync(int requestId, string approverId, string status)
         {
             var request = await _context.ApprovalRequests
                 .Include(ar => ar.ApprovalFlows)
-                .FirstOrDefaultAsync(ar => ar.Id == id);
+                .FirstOrDefaultAsync(ar => ar.Id == requestId);
 
             if (request == null)
                 throw new ArgumentException("Approval Request tidak ditemukan");
 
-            var approvalFlow = request.ApprovalFlows.FirstOrDefault(af => af.ApproverId == approverId);
-            if (approvalFlow == null)
-                throw new ArgumentException("Approver tidak ditemukan di flow ini");
+            var currentStep = request.ApprovalFlows
+                .OrderBy(f => f.OrderIndex)
+                .FirstOrDefault(f => f.Status != "Approved" && f.Status != "Rejected");
 
-            approvalFlow.Status = status;
-            approvalFlow.ApprovedAt = DateTime.UtcNow;
+            if (currentStep == null)
+                throw new InvalidOperationException("Request has been fully processed.");
 
-            request.CurrentStatus = request.ApprovalFlows.All(af => af.Status == "Approved")
-                ? "Approved"
-                : "In Progress";
+            if (currentStep.ApproverId != approverId)
+                throw new UnauthorizedAccessException("Anda tidak berhak menyetujui pada tahap ini.");
 
-            await _context.SaveChangesAsync();
-            return true;
+            currentStep.Status = status;
+            currentStep.ApprovedAt = DateTime.UtcNow;
+
+            // Jika Rejected, hentikan proses approval
+            if (status == "Rejected")
+            {
+                request.CurrentStatus = "Rejected";
+            }
+            else
+            {
+                var approvedCount = request.ApprovalFlows.Count(f => f.Status == "Approved");
+                var total = request.ApprovalFlows.Count;
+
+                request.CurrentStatus = (approvedCount == total) ? "Completed" : "In Progress";
+            }
+
+            // Tambahan: update UpdatedAt agar tidak null jika diwajibkan di DB
+            request.UpdatedAt = DateTime.UtcNow;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException ex)
+            {
+                // Ambil pesan inner exception (biasanya dari SQL Server)
+                var innerMessage = ex.InnerException?.Message ?? "Tidak ada inner exception.";
+                throw new Exception($"Gagal menyimpan perubahan: {ex.Message} | Inner: {innerMessage}", ex);
+            }
         }
 
 

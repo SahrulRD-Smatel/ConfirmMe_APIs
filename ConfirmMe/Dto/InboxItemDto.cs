@@ -13,5 +13,7 @@
 
         //tambahan
         public string ApprovalTypeName { get; set; }
+        // tambahan untuk QR
+        public int ApprovalFlowId { get; set; }
     }
 }
