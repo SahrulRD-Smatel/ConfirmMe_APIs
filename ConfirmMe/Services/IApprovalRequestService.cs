@@ -9,6 +9,8 @@ namespace ConfirmMe.Services
     {
         Task<ApprovalRequest> CreateApprovalRequestAsync(ApprovalRequest request);
         Task UpdateApprovalRequestAsync(ApprovalRequest request);
+        Task<bool> UpdateApprovalRequestStatusAsync(int approvalRequestId);
+
 
         Task<ApprovalRequest> GetApprovalRequestByIdAsync(int id);
         Task<IEnumerable<ApprovalRequest>> GetAllApprovalRequestsAsync();

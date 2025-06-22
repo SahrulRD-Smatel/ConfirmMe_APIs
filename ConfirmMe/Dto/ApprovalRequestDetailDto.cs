@@ -15,6 +15,7 @@
         public string ApproverName { get; set; }
         public string Status { get; set; }
         public DateTime? ApprovedAt { get; set; }
+        public string? Remark { get; set; }
     }
 
 }

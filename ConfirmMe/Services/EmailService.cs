@@ -24,58 +24,7 @@ namespace ConfirmMe.Services
             _context = context;
         }
 
-        //public async Task SendEmailAsync(string toEmail, string subject, string htmlMessage)
-        //{
-        //    var email = new MimeMessage();
-        //    // Menggunakan FromName dan FromEmail
-        //    email.From.Add(new MailboxAddress(_emailSettings.FromName, _emailSettings.FromEmail));
-        //    email.To.Add(MailboxAddress.Parse(toEmail));
-        //    email.Subject = subject;
-        //    email.Body = new TextPart(TextFormat.Html) { Text = htmlMessage };
 
-
-        //    var policy = Policy
-        //        .Handle<SmtpCommandException>()
-        //        .Or<SmtpProtocolException>()
-        //        .WaitAndRetryAsync(3,
-        //            retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-        //            (exception, timeSpan, retryCount, context) =>
-        //            {
-        //                Console.WriteLine($"Retry {retryCount} failed: {exception.Message}");
-        //            });
-
-        //    try
-        //    {
-        //        await policy.ExecuteAsync(async () =>
-        //        {
-        //            using var smtp = new SmtpClient();
-
-        //            // Jangan pake local endpoint binding, biar bebas cari jalan keluar jaringan
-        //            smtp.LocalEndPoint = null;
-
-        //            await smtp.ConnectAsync(_emailSettings.SmtpServer, _emailSettings.Port, SecureSocketOptions.StartTls);
-        //            await smtp.AuthenticateAsync(_emailSettings.Username, _emailSettings.Password);
-        //            await smtp.SendAsync(email);
-        //            await smtp.DisconnectAsync(true);
-        //        });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        // Log error to database if email sending fails after retries
-        //        var emailLog = new EmailErrorLog
-        //        {
-        //            ToEmail = toEmail,
-        //            Subject = subject,
-        //            ErrorMessage = ex.Message,
-        //            Timestamp = DateTime.UtcNow
-        //        };
-        //        _context.EmailErrorLogs.Add(emailLog);
-        //        await _context.SaveChangesAsync();
-
-        //        // Optionally, rethrow the exception to let the caller know it failed
-        //        throw new Exception("Failed to send email after retries", ex);
-        //    }
-        //}
 
 
 
@@ -95,14 +44,14 @@ namespace ConfirmMe.Services
             email.Body = builder.ToMessageBody();
 
             var policy = Policy
-                .Handle<SmtpCommandException>()
-                .Or<SmtpProtocolException>()
-                .WaitAndRetryAsync(3,
-                    retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-                    (exception, timeSpan, retryCount, context) =>
-                    {
-                        Console.WriteLine($"Retry {retryCount} failed: {exception.Message}");
-                    });
+    .Handle<Exception>() // tangkap semua, bukan hanya SmtpCommand/Protocol
+    .WaitAndRetryAsync(3,
+        retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+        (exception, timeSpan, retryCount, context) =>
+        {
+            Console.WriteLine($"Retry {retryCount} failed: {exception.GetType().Name} - {exception.Message}");
+        });
+
 
             try
             {
@@ -118,11 +67,12 @@ namespace ConfirmMe.Services
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"❌ EMAIL ERROR: {ex.GetType().Name} - {ex.Message}");
                 var emailLog = new EmailErrorLog
                 {
                     ToEmail = toEmail,
                     Subject = subject,
-                    ErrorMessage = ex.Message,
+                    ErrorMessage = ex.ToString(),
                     Timestamp = DateTime.UtcNow
                 };
                 _context.EmailErrorLogs.Add(emailLog);

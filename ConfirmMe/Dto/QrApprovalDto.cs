@@ -8,7 +8,7 @@
         public string Action { get; set; } // "Approved" atau "Rejected"
         public DateTime IssuedAt { get; set; }
         public string QrToken { get; set; }
-        public string Remark { get; set; } // Tambahan: agar bisa isi catatan saat QR approval
+        public string? Remark { get; set; } // Tambahan: agar bisa isi catatan saat QR approval
 
     }
 

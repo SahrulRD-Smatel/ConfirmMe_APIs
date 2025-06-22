@@ -240,30 +240,30 @@ namespace ConfirmMe.Controllers
         }
 
 
-
         [Authorize(Roles = "HRD, Manager, Direktur")]
         [HttpPut("{id}/approve")]
         public async Task<IActionResult> ApproveRequest(int id, [FromBody] ApproveRequestDto dto)
         {
             try
             {
-                // Ambil semua approval flow dan urutkan berdasarkan step
-                var flows = (await _approvalFlowService.GetApprovalFlowsByRequestIdAsync(id)).OrderBy(f => f.OrderIndex).ToList();
+                // 1. Ambil semua approval flow dan urutkan
+                var flows = (await _approvalFlowService.GetApprovalFlowsByRequestIdAsync(id))
+                    .OrderBy(f => f.OrderIndex)
+                    .ToList();
 
-                // Cari step aktif (belum diapprove/reject)
+                // 2. Temukan step aktif (belum diapprove/reject)
                 var currentStep = flows.FirstOrDefault(f => f.Status != "Approved");
-
                 if (currentStep == null)
                     return BadRequest("This request has already been fully approved.");
 
-                // Cek apakah approver saat ini adalah yang berhak menyetujui
+                // 3. Validasi apakah approver saat ini sesuai
                 if (currentStep.ApproverId != dto.ApproverId)
                     return Forbid("You are not authorized to approve this request at this stage.");
 
-                // Update status pada current step
-                await _approvalFlowService.UpdateApprovalFlowStatusAsync(currentStep.Id, dto.Status);
+                // 4. Update status step saat ini (Approved / Rejected)
+                await _approvalFlowService.UpdateApprovalFlowStatusAsync(currentStep.Id, dto.Status, dto.Remark ?? "");
 
-                // Log audit trail
+                // 5. Simpan log audit
                 await _auditTrailService.LogActionAsync(
                     dto.ApproverId,
                     "Approve Request",
@@ -275,10 +275,10 @@ namespace ConfirmMe.Controllers
                     approverId: dto.ApproverId,
                     role: "Approver",
                     actionType: dto.Status == "Approved" ? ActionType.Approved : ActionType.Rejected,
-                    remark: "Approved after review"
+                    remark: dto.Remark ?? "-"
                 );
 
-                // Notifikasi ke Approver
+                // 6. Kirim notifikasi ke approver (dirinya sendiri)
                 await _notificationService.CreateNotificationAsync(
                     dto.ApproverId,
                     $"You have {dto.Status.ToLower()} the request.",
@@ -287,12 +287,12 @@ namespace ConfirmMe.Controllers
                     "ApprovalRequest"
                 );
 
-                // Ambil data approval request
+                // 7. Ambil data ApprovalRequest (untuk kirim notifikasi/email ke requester)
                 var approvalRequest = await _approvalRequestService.GetApprovalRequestByIdAsync(id);
                 if (approvalRequest == null)
                     return NotFound("Approval request not found.");
 
-                // Notifikasi ke Requestor
+                // 8. Kirim notifikasi & email ke requester
                 await _notificationService.CreateNotificationAsync(
                     approvalRequest.RequestedById,
                     $"Your approval request \"{approvalRequest.Title}\" has been {dto.Status.ToLower()} by one of the approvers.",
@@ -301,7 +301,6 @@ namespace ConfirmMe.Controllers
                     "ApprovalRequest"
                 );
 
-                // Email ke Requestor
                 await _emailService.SendApprovalStatusChangedAsync(
                     approvalRequest.RequestedByUser.Email,
                     approvalRequest.Title,
@@ -309,22 +308,22 @@ namespace ConfirmMe.Controllers
                     "Requester"
                 );
 
-                // Jika ada reject, hentikan proses approval
+                // 9. Jika status adalah "Rejected", hentikan flow & update status utama
                 if (dto.Status == "Rejected")
                 {
                     await _approvalRequestService.UpdateApprovalStatusAsync(id, "Rejected");
-
+                    await _approvalRequestService.UpdateApprovalRequestStatusAsync(id); // ⬅ tambahkan ini
                     return Ok(new { message = "Request rejected." });
                 }
 
-                // Cek apakah semua step sudah approved
-                var approvedCount = flows.Count(f => f.Status == "Approved");
-                var totalSteps = flows.Count();
-                if (approvedCount == totalSteps)
+                // 10. Jika semua flow sudah Approved, tandai sebagai Completed
+                var allApproved = flows.All(f => f.Status == "Approved");
+                if (allApproved)
                 {
                     await _approvalRequestService.UpdateApprovalStatusAsync(id, "Completed");
+                    await _approvalRequestService.UpdateApprovalRequestStatusAsync(id); // ⬅ tambahkan ini juga
 
-                    // Notifikasi akhir ke Requestor
+                    // Notifikasi dan email akhir ke requester
                     await _notificationService.CreateNotificationAsync(
                         approvalRequest.RequestedById,
                         $"Your request \"{approvalRequest.Title}\" has been fully approved.",
@@ -333,7 +332,6 @@ namespace ConfirmMe.Controllers
                         "ApprovalRequest"
                     );
 
-                    // Email akhir ke Requestor
                     await _emailService.SendApprovalStatusChangedAsync(
                         approvalRequest.RequestedByUser.Email,
                         approvalRequest.Title,
@@ -341,16 +339,22 @@ namespace ConfirmMe.Controllers
                         "Requester"
                     );
 
-                    // TODO: Tambahkan proses generate surat & barcode disini kalo butuh
+                    // TODO: Tambahkan proses generate surat & barcode jika diperlukan
+                }
+                else
+                {
+                    // Update status ApprovalRequest agar merefleksikan progress terbaru
+                    await _approvalRequestService.UpdateApprovalRequestStatusAsync(id);
                 }
 
                 return Ok(new { message = $"Request {dto.Status.ToLower()}." });
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 return StatusCode(500, $"Internal server error: {ex.Message}");
             }
         }
+
 
 
         [AllowAnonymous]
@@ -390,7 +394,7 @@ namespace ConfirmMe.Controllers
 
 
                 // ✅ Update approval status
-                await _approvalFlowService.UpdateApprovalFlowStatusAsync(flow.Id, actionType.ToString());
+                await _approvalFlowService.UpdateApprovalFlowStatusAsync(flow.Id, actionType.ToString(), dto.Remark ?? "");
 
                 // ✅ Tandai QR sudah digunakan dan simpan Remark
                 flow.IsQrUsed = true;

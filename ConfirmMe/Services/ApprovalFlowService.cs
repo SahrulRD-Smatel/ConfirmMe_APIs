@@ -62,7 +62,7 @@ namespace ConfirmMe.Services
 
 
         // Mengupdate status ApprovalFlow
-        public async Task<bool> UpdateApprovalFlowStatusAsync(int approvalFlowId, string status)
+        public async Task<bool> UpdateApprovalFlowStatusAsync(int approvalFlowId, string status, string remark)
         {
             var approvalFlow = await _context.ApprovalFlows.FindAsync(approvalFlowId);
             if (approvalFlow == null)
@@ -72,6 +72,8 @@ namespace ConfirmMe.Services
 
             approvalFlow.Status = status;
             approvalFlow.ApprovedAt = DateTime.UtcNow;
+            approvalFlow.Remark = remark;
+
 
             await _context.SaveChangesAsync();
             return true;

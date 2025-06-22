@@ -36,7 +36,8 @@ namespace ConfirmMe.Extensions
 
             CreateMap<ApprovalFlow, ApprovalFlowDto>()
                 .ForMember(dest => dest.ApproverName, opt => opt.MapFrom(src => src.Approver.FullName))
-                .ForMember(dest => dest.PositionTitle, opt => opt.MapFrom(src => src.Position.Title));
+                .ForMember(dest => dest.PositionTitle, opt => opt.MapFrom(src => src.Position.Title))
+                .ForMember(dest => dest.Remark, opt => opt.MapFrom(src => src.Remark));
         }
     }
 }

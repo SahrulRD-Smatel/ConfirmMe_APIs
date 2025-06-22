@@ -73,36 +73,6 @@ namespace ConfirmMe.Services
         }
 
 
-        //public async Task AddAttachmentAsync(Attachment attachment, IFormFile file)
-        //{
-        //    if (file == null || file.Length == 0)
-        //        throw new ArgumentException("File tidak valid.");
-
-        //    var allowedExtensions = new[] { ".pdf", ".docx", ".jpg", ".png" };
-        //    var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        //    if (!allowedExtensions.Contains(extension))
-        //        throw new ArgumentException("File type tidak diizinkan.");
-
-        //    if (file.Length > 10_000_000) // 10 MB limit
-        //        throw new ArgumentException("Ukuran file terlalu besar.");
-
-        //    // Baca file ke memory stream dan simpan ke byte[]
-        //    using (var ms = new MemoryStream())
-        //    {
-        //        await file.CopyToAsync(ms);
-        //        attachment.FileContent = ms.ToArray();
-        //    }
-
-        //    attachment.FileName = file.FileName;
-        //    attachment.ContentType = file.ContentType;
-        //    attachment.UploadedAt = DateTime.UtcNow;
-
-        //    _context.Attachments.Add(attachment);
-        //    await _context.SaveChangesAsync();
-        //}
-
-
-        // Implementasi metode lainnya yang sesuai dengan antarmuka IApprovalRequestService
 
         public async Task<IEnumerable<ApplicationUser>> GetUsersByRolesAsync(string[] roles)
         {
@@ -186,30 +156,6 @@ namespace ConfirmMe.Services
 
             return request;
         }
-
-        //public async Task<bool> ApproveRequestAsync(int id, string approverId, string status)
-        //{
-        //    var request = await _context.ApprovalRequests
-        //        .Include(ar => ar.ApprovalFlows)
-        //        .FirstOrDefaultAsync(ar => ar.Id == id);
-
-        //    if (request == null)
-        //        throw new ArgumentException("Approval Request tidak ditemukan");
-
-        //    var approvalFlow = request.ApprovalFlows.FirstOrDefault(af => af.ApproverId == approverId);
-        //    if (approvalFlow == null)
-        //        throw new ArgumentException("Approver tidak ditemukan di flow ini");
-
-        //    approvalFlow.Status = status;
-        //    approvalFlow.ApprovedAt = DateTime.UtcNow;
-
-        //    request.CurrentStatus = request.ApprovalFlows.All(af => af.Status == "Approved")
-        //        ? "Approved"
-        //        : "In Progress";
-
-        //    await _context.SaveChangesAsync();
-        //    return true;
-        //}
 
 
         public async Task<bool> ApproveRequestAsync(int requestId, string approverId, string status)
@@ -304,6 +250,47 @@ namespace ConfirmMe.Services
             _context.ApprovalRequests.Remove(request);
 
             await _context.SaveChangesAsync();
+        }
+
+
+        public async Task<bool> UpdateApprovalRequestStatusAsync(int approvalRequestId)
+        {
+            var approvalRequest = await _context.ApprovalRequests
+                .FirstOrDefaultAsync(ar => ar.Id == approvalRequestId);
+            if (approvalRequest == null)
+                throw new Exception("ApprovalRequest tidak ditemukan");
+
+            var flows = await _context.ApprovalFlows
+                .AsNoTracking()
+                .Where(af => af.ApprovalRequestId == approvalRequestId)
+                .ToListAsync();
+
+
+            if (flows.Any(f => f.Status == "Rejected"))
+            {
+                approvalRequest.CurrentStatus = "Rejected";
+            }
+            else if (flows.All(f => f.Status == "Approved"))
+            {
+                approvalRequest.CurrentStatus = "Completed";
+            }
+            else
+            {
+                approvalRequest.CurrentStatus = "Pending";
+            }
+
+            approvalRequest.UpdatedAt = DateTime.UtcNow;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException ex)
+            {
+                var inner = ex.InnerException?.Message ?? "Tidak ada inner exception";
+                throw new Exception($"Gagal menyimpan ApprovalRequest ID {approvalRequestId}: {inner}");
+            }
         }
 
 

@@ -17,7 +17,16 @@ namespace ConfirmMe.Services
             _context = context;
         }
 
-        public async Task CreateNotificationAsync(string recipientId, string message, string type, int? relatedEntityId = null, string relatedEntityType = null, string urgencyLevel = "Medium", DateTime? expiryDate = null, string actionUrl = null)
+
+        public async Task CreateNotificationAsync(
+    string recipientId,
+    string message,
+    string type,
+    int? relatedEntityId = null,
+    string relatedEntityType = null,
+    string urgencyLevel = "Medium",
+    DateTime? expiryDate = null,
+    string actionUrl = null)
         {
             var notification = new Notification
             {
@@ -27,8 +36,8 @@ namespace ConfirmMe.Services
                 RelatedEntityId = relatedEntityId,
                 RelatedEntityType = relatedEntityType,
                 UrgencyLevel = urgencyLevel,
-                ExpiryDate = expiryDate,
-                ActionUrl = actionUrl,
+                ExpiryDate = expiryDate ?? DateTime.UtcNow.AddDays(7),
+                ActionUrl = actionUrl ?? "/", // ✅ cegah null
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             };
@@ -36,6 +45,28 @@ namespace ConfirmMe.Services
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
         }
+
+
+
+        //public async Task CreateNotificationAsync(string recipientId, string message, string type, int? relatedEntityId = null, string relatedEntityType = null, string urgencyLevel = "Medium", DateTime? expiryDate = null, string actionUrl = null)
+        //{
+        //    var notification = new Notification
+        //    {
+        //        RecipientId = recipientId,
+        //        Message = message,
+        //        Type = type,
+        //        RelatedEntityId = relatedEntityId,
+        //        RelatedEntityType = relatedEntityType,
+        //        UrgencyLevel = urgencyLevel,
+        //        ExpiryDate = expiryDate,
+        //        ActionUrl = actionUrl,
+        //        IsRead = false,
+        //        CreatedAt = DateTime.UtcNow
+        //    };
+
+        //    _context.Notifications.Add(notification);
+        //    await _context.SaveChangesAsync();
+        //}
 
         public async Task MarkNotificationAsReadAsync(int notificationId)
         {
