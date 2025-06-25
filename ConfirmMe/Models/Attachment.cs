@@ -8,7 +8,10 @@ namespace ConfirmMe.Models
 
         
         public string FileName { get; set; }
-        public byte[] FileContent { get; set; }      // isi file disimpan di sini
+
+        public string FilePath { get; set; } // e.g. uploads/REQ20250624-101/ttd.png
+
+
         public string ContentType { get; set; }      // misal "application/pdf", "image/png"
         public DateTime UploadedAt { get; set; }
 

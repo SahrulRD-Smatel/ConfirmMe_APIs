@@ -40,32 +40,47 @@ namespace ConfirmMe.Services
             return approvers;
         }
 
-        // Implementasi AddAttachmentAsync yang sesuai dengan antarmuka
+
+
         public async Task AddAttachmentAsync(Attachment attachment, IFormFile file)
         {
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File tidak valid.");
 
-            var allowedExtensions = new[] { ".pdf", ".docx", ".jpg", ".png" };
+            // 🔒 Blacklist untuk file berbahaya
+            var forbiddenExtensions = new[] { ".exe", ".bat", ".cmd", ".sh" };
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (!allowedExtensions.Contains(extension))
-                throw new ArgumentException("File type tidak diizinkan.");
 
-            if (file.Length > 10_000_000) // 10 MB limit
-                throw new ArgumentException("Ukuran file terlalu besar.");
+            if (forbiddenExtensions.Contains(extension))
+                throw new ArgumentException("Tipe file ini tidak diizinkan untuk alasan keamanan.");
 
-            // ⛔️ Pastikan ApprovalRequestId tidak kosong/null
+            // ✅ Batas ukuran file (misalnya 5 MB)
+            if (file.Length > 5_000_000)
+                throw new ArgumentException("Ukuran file terlalu besar (maksimal 5 MB).");
+
             if (attachment.ApprovalRequestId == 0)
                 throw new ArgumentException("ApprovalRequestId harus diisi sebelum menyimpan attachment.");
 
-            using (var ms = new MemoryStream())
+            // ✅ Simpan ke folder /uploads/{requestNumber}
+            var request = await _context.ApprovalRequests.FindAsync(attachment.ApprovalRequestId);
+            if (request == null)
+                throw new ArgumentException("Approval request tidak ditemukan.");
+
+            var requestFolder = Path.Combine("uploads", request.RequestNumber);
+            if (!Directory.Exists(requestFolder))
+                Directory.CreateDirectory(requestFolder);
+
+            var safeFileName = Path.GetFileName(file.FileName); // untuk keamanan
+            var filePath = Path.Combine(requestFolder, safeFileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
             {
-                await file.CopyToAsync(ms);
-                attachment.FileContent = ms.ToArray();
+                await file.CopyToAsync(stream);
             }
 
-            attachment.FileName = file.FileName;
+            attachment.FileName = safeFileName;
             attachment.ContentType = file.ContentType;
+            attachment.FilePath = filePath;
             attachment.UploadedAt = DateTime.UtcNow;
 
             _context.Attachments.Add(attachment);
@@ -120,6 +135,7 @@ namespace ConfirmMe.Services
         {
             var request = await _context.ApprovalRequests
                 .Include(ar => ar.ApprovalType)
+                .Include(r => r.Attachments)
                 .Include(ar => ar.RequestedByUser)
                 .Include(ar => ar.ApprovalFlows)
                     .ThenInclude(af => af.Position)

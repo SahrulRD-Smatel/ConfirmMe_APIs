@@ -9,7 +9,8 @@ namespace ConfirmMe.Extensions
         public MappingProfile()
         {
             CreateMap<ApprovalFlow, InboxItemDto>()
-                .ForMember(dest => dest.ApprovalRequestId, opt => opt.MapFrom(src => src.ApprovalRequestId))
+                .ForMember(dest => dest.ApprovalFlowId, opt => opt.MapFrom(src => src.Id))
+                .ForMember(dest => dest.ApprovalRequestId, opt => opt.MapFrom(src => src.ApprovalRequest.Id))
                 .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.ApprovalRequest.Title))
                 .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.ApprovalRequest.Description))
                 .ForMember(dest => dest.RequestedById, opt => opt.MapFrom(src => src.ApprovalRequest.RequestedByUser.FullName))
@@ -17,8 +18,8 @@ namespace ConfirmMe.Extensions
                 .ForMember(dest => dest.CurrentStep, opt => opt.MapFrom(src => src.OrderIndex))
                 .ForMember(dest => dest.TotalSteps, opt => opt.MapFrom(src => src.ApprovalRequest.ApprovalFlows.Count))
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status))
-                .ForMember(dest => dest.ApprovalTypeName, opt => opt.MapFrom(src => src.ApprovalRequest.ApprovalType.Name))
-                .ForMember(dest => dest.ApprovalRequestId, opt => opt.MapFrom(src => src.Id));
+                .ForMember(dest => dest.ApprovalTypeName, opt => opt.MapFrom(src => src.ApprovalRequest.ApprovalType.Name));
+                //.ForMember(dest => dest.ApprovalRequestId, opt => opt.MapFrom(src => src.Id));
 
 
             CreateMap<ApplicationUser, UserDto>()
@@ -32,7 +33,9 @@ namespace ConfirmMe.Extensions
 
             CreateMap<ApprovalRequest, ApprovalRequestDto>();
             CreateMap<ApprovalType, ApprovalTypeStatDto>();
-            CreateMap<Attachment, AttachmentDto>();
+            CreateMap<Attachment, AttachmentDto>()
+                .ForMember(dest => dest.FileUrl, opt => opt.MapFrom(src =>
+                    $"/attachments/{src.Id}/download")); ;
 
             CreateMap<ApprovalFlow, ApprovalFlowDto>()
                 .ForMember(dest => dest.ApproverName, opt => opt.MapFrom(src => src.Approver.FullName))

@@ -1,16 +1,17 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using ConfirmMe.Data;
+using ConfirmMe.Models;
 using ConfirmMe.Services;
 using Microsoft.AspNetCore.Authorization;
-using ConfirmMe.Models;
-using QuestPDF.Fluent;
-using QuestPDF.Infrastructure;
-using QuestPDF.Helpers;
-using ConfirmMe.Data;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.IO;
-using System.Threading.Tasks;
-using System.Linq;
+using Microsoft.Extensions.Hosting;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ConfirmMe.Controllers
 {
@@ -21,14 +22,17 @@ namespace ConfirmMe.Controllers
     {
         private readonly ILetterService _letterService;
         private readonly AppDbContext _context;
+        private readonly IWebHostEnvironment _environment;
+
 
         // Folder penyimpanan file PDF
         private readonly string _storageFolder = Path.Combine(Directory.GetCurrentDirectory(), "Storage", "Letters");
 
-        public LettersController(ILetterService letterService, AppDbContext context)
+        public LettersController(ILetterService letterService, AppDbContext context, IWebHostEnvironment environment)
         {
             _letterService = letterService;
             _context = context;
+            _environment = environment;
 
             // Pastikan folder storage ada
             if (!Directory.Exists(_storageFolder))
@@ -162,5 +166,31 @@ namespace ConfirmMe.Controllers
                 });
             }).GeneratePdf();
         }
+
+
+        [HttpGet("attachments/{id}/download")]
+        public async Task<IActionResult> DownloadAttachment(int id)
+        {
+            var attachment = await _context.Attachments.FindAsync(id);
+            if (attachment == null)
+                return NotFound("Attachment tidak ditemukan.");
+
+            if (string.IsNullOrEmpty(attachment.FilePath))
+                return BadRequest("File path kosong.");
+
+            var filePath = Path.Combine(_environment.WebRootPath ?? "", attachment.FilePath);
+
+            if (!System.IO.File.Exists(filePath))
+                return NotFound("File tidak ditemukan di server.");
+
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+
+            Response.Headers.Add("Content-Disposition", $"inline; filename={attachment.FileName}");
+
+            return File(fileBytes, attachment.ContentType ?? "application/octet-stream");
+        }
+
+
+
     }
 }
