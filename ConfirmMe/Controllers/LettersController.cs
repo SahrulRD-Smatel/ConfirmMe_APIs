@@ -4,14 +4,21 @@ using ConfirmMe.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
-using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System;
+using ZXing;
+using ZXing.Common;
+using ZXing.ImageSharp;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Formats.Png;
+using QuestImage = QuestPDF.Infrastructure.Image;
+using SharpImage = SixLabors.ImageSharp.Image;
 
 namespace ConfirmMe.Controllers
 {
@@ -24,41 +31,19 @@ namespace ConfirmMe.Controllers
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _environment;
 
-
-        // Folder penyimpanan file PDF
-        private readonly string _storageFolder = Path.Combine(Directory.GetCurrentDirectory(), "Storage", "Letters");
-
         public LettersController(ILetterService letterService, AppDbContext context, IWebHostEnvironment environment)
         {
             _letterService = letterService;
             _context = context;
             _environment = environment;
-
-            // Pastikan folder storage ada
-            if (!Directory.Exists(_storageFolder))
-            {
-                Directory.CreateDirectory(_storageFolder);
-            }
         }
 
-        // GET: /api/letters/metadata/123
-        [HttpGet("metadata/{ApprovalRequestId}")]
-        public async Task<IActionResult> GetLetterMetadata(int ApprovalRequestId)
-        {
-            var metadata = await _letterService.GetLetterMetadataAsync(ApprovalRequestId);
-            if (metadata == null)
-                return NotFound("Surat belum tersedia atau belum di-approve sepenuhnya.");
-
-            return Ok(metadata);
-        }
-
-        // Tambahkan method untuk membuat folder path sesuai tahun dan bulan
-        private string GetStorageFolder()
+        private static string GetStorageFolder()
         {
             var baseFolder = Path.Combine(Directory.GetCurrentDirectory(), "Storage", "Letters");
-            var yearFolder = DateTime.Now.Year.ToString();
-            var monthFolder = DateTime.Now.Month.ToString("D2"); // format 01, 02, ..., 12
-            var fullPath = Path.Combine(baseFolder, yearFolder, monthFolder);
+            var year = DateTime.Now.Year.ToString();
+            var month = DateTime.Now.Month.ToString("D2");
+            var fullPath = Path.Combine(baseFolder, year, month);
 
             if (!Directory.Exists(fullPath))
                 Directory.CreateDirectory(fullPath);
@@ -66,7 +51,15 @@ namespace ConfirmMe.Controllers
             return fullPath;
         }
 
-        // Ganti di method DownloadLetter
+        [HttpGet("metadata/{ApprovalRequestId}")]
+        public async Task<IActionResult> GetLetterMetadata(int ApprovalRequestId)
+        {
+            var metadata = await _letterService.GetLetterMetadataAsync(ApprovalRequestId);
+            if (metadata == null)
+                return NotFound("Surat belum tersedia atau belum di-approve sepenuhnya.");
+            return Ok(metadata);
+        }
+
         [HttpGet("{ApprovalRequestId}/download")]
         public async Task<IActionResult> DownloadLetter(int ApprovalRequestId)
         {
@@ -83,26 +76,18 @@ namespace ConfirmMe.Controllers
                 return NotFound("Request tidak ditemukan.");
 
             var approvalStepCount = request.ApprovalFlows.Count;
-
             var approvedStepCount = await _context.AuditTrails
-                .Where(a =>
-                    a.RecordId == request.Id &&
-                    a.TableName == "ApprovalRequests" &&
-                    a.ActionType == ActionType.Approved)
+                .Where(a => a.RecordId == request.Id && a.TableName == "ApprovalRequests" && a.ActionType == ActionType.Approved)
                 .Select(a => a.ApproverId)
                 .Distinct()
                 .CountAsync();
 
-            var allApproved = approvedStepCount >= approvalStepCount;
+            if (approvedStepCount < approvalStepCount)
+                return BadRequest("Approval belum selesai. Tidak dapat mengunduh surat.");
 
-            if (!allApproved)
-                return BadRequest("Approval anda belum selesai. Tidak dapat mengunduh surat.");
-
-            // Dapatkan folder penyimpanan dengan struktur tahun/bulan
             var storageFolder = GetStorageFolder();
-
-            string fileName = $"Surat_{request.Id}.pdf";
-            string filePath = Path.Combine(storageFolder, fileName);
+            var fileName = $"Surat_{request.Id}.pdf";
+            var filePath = Path.Combine(storageFolder, fileName);
 
             if (!System.IO.File.Exists(filePath))
             {
@@ -114,9 +99,17 @@ namespace ConfirmMe.Controllers
             return File(fileBytes, "application/pdf", fileName);
         }
 
-
-        private byte[] GenerateLetterPdf(ApprovalRequest request)
+        private static byte[] GenerateLetterPdf(ApprovalRequest request)
         {
+            var logoPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets", "Images", "logo.png");
+            var qrBytes = GenerateQrImage($"https://app.confirmme.com/request/{request.Id}");
+
+            QuestImage qrImage;
+            using (var ms = new MemoryStream(qrBytes))
+            {
+                qrImage = QuestImage.FromStream(ms);
+            }
+
             return Document.Create(container =>
             {
                 container.Page(page =>
@@ -124,73 +117,85 @@ namespace ConfirmMe.Controllers
                     page.Size(PageSizes.A4);
                     page.Margin(40);
                     page.DefaultTextStyle(x => x.FontSize(12));
-                    page.Header()
-                        .Height(60)
-                        .Row(row =>
-                        {                            
-                            row.RelativeItem(1).AlignMiddle().Image(Path.Combine(Directory.GetCurrentDirectory(), "Assets", "Images", "logo.png"), ImageScaling.FitHeight);
-
-                            row.RelativeItem(4).AlignMiddle().Text("PERUSAHAAN INFO SOLUSINDO DATA UTAMA").FontSize(20).Bold().FontColor(Colors.Blue.Medium);
+                    page.Content().Column(col =>
+                    {
+                        // Header
+                        col.Item().Row(row =>
+                        {
+                            row.ConstantItem(80).Height(60).Image(QuestImage.FromFile(logoPath));
+                            row.RelativeItem().AlignCenter().Text("PT. INFO SOLUSINDO DATA UTAMA")
+                                .FontSize(18).Bold().FontColor(Colors.Blue.Medium);
                         });
 
-                    page.Content()
-                        .PaddingVertical(10)
-                        .Column(col =>
+                        col.Item().AlignCenter().Text("SURAT PERSETUJUAN").FontSize(16).Bold();
+                        col.Item().AlignRight().Text($"Tanggal: {DateTime.Now:dd MMMM yyyy}");
+
+                        col.Item().Text($"Nama Pemohon: {request.RequestedByUser.FullName}");
+                        col.Item().Text($"Jenis Permohonan: {request.ApprovalType.Name}");
+                        col.Item().Text("Status: DISETUJUI").Bold().FontColor(Colors.Green.Medium);
+
+                        col.Item().Text("Rincian Persetujuan:").Bold();
+                        foreach (var flow in request.ApprovalFlows.OrderBy(f => f.OrderIndex))
                         {
-                            col.Item().Text("SURAT PERSETUJUAN").FontSize(18).Bold().AlignCenter();
-                            col.Item().Text($"Tanggal: {DateTime.Now:dd MMMM yyyy}").AlignRight();
+                            col.Item().Text($"• {flow.Position?.Title} - {flow.Approver?.FullName} ({flow.Status})");
+                        }
 
-                            col.Item().Text($"Nama Pemohon: {request.RequestedByUser.FullName}");
-                            col.Item().Text($"Jenis Permohonan: {request.ApprovalType.Name}");
-                            col.Item().Text("Status: DISETUJUI").FontColor(Colors.Green.Medium).Bold();
+                        col.Item().PaddingTop(10).Text("Dokumen ini dihasilkan secara digital dan telah disetujui oleh seluruh pihak terkait.").Italic();
 
-                            col.Item().PaddingTop(15).Text("Rincian Persetujuan:").Bold();
-                            foreach (var flow in request.ApprovalFlows.OrderBy(f => f.OrderIndex))
+                        // QR + Signature
+                        col.Item().PaddingTop(20).Row(row =>
+                        {
+                            row.RelativeItem().Column(inner =>
                             {
-                                col.Item().Text($"• {flow.Position?.Title} ({flow.Approver?.FullName}) - {flow.Status}");
-                            }
+                                inner.Item().Text("QR Code Verifikasi:");
+                                inner.Item().Height(100).Image(qrImage);
+                            });
 
-                            col.Item().PaddingTop(30).Text("Dokumen ini dihasilkan secara digital dan telah disetujui oleh seluruh pihak terkait.").Italic();
+                            //row.RelativeItem().Column(inner =>
+                            //{
+                            //    inner.Item().Text("Tanda Tangan Digital").Bold();
+                            //    inner.Item().Height(60).LineHorizontal(1f);
+                            //    inner.Item().Text(request.RequestedByUser.FullName);
+                            //});
                         });
+                    });
 
-                    page.Footer()
-                        .AlignCenter()
-                        .Text(x =>
-                        {
-                            x.Span("© 2025 Perusahaan Info Solusindo Data Utama. Semua hak cipta dilindungi. ").FontSize(9).FontColor(Colors.Grey.Medium);
-                            x.Span("Halaman ");
-                            x.CurrentPageNumber();
-                            x.Span(" dari ");
-                            x.TotalPages();
-                        });
+                    page.Footer().AlignCenter().Text("© 2025 PT Info Solusindo Data Utama. Semua hak cipta dilindungi.")
+                        .FontSize(9).FontColor(Colors.Grey.Medium);
                 });
             }).GeneratePdf();
         }
 
+        private static byte[] GenerateQrImage(string data)
+        {
+            var writer = new BarcodeWriterPixelData
+            {
+                Format = BarcodeFormat.QR_CODE,
+                Options = new EncodingOptions { Height = 150, Width = 150, Margin = 1 }
+            };
+
+            var pixelData = writer.Write(data);
+
+            using var image = SharpImage.LoadPixelData<Rgba32>(pixelData.Pixels, pixelData.Width, pixelData.Height);
+            using var ms = new MemoryStream();
+            image.Save(ms, new PngEncoder());
+            return ms.ToArray();
+        }
 
         [HttpGet("attachments/{id}/download")]
         public async Task<IActionResult> DownloadAttachment(int id)
         {
             var attachment = await _context.Attachments.FindAsync(id);
-            if (attachment == null)
+            if (attachment == null || string.IsNullOrEmpty(attachment.FilePath))
                 return NotFound("Attachment tidak ditemukan.");
 
-            if (string.IsNullOrEmpty(attachment.FilePath))
-                return BadRequest("File path kosong.");
-
             var filePath = Path.Combine(_environment.WebRootPath ?? "", attachment.FilePath);
-
             if (!System.IO.File.Exists(filePath))
                 return NotFound("File tidak ditemukan di server.");
 
             var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-
             Response.Headers.Add("Content-Disposition", $"inline; filename={attachment.FileName}");
-
             return File(fileBytes, attachment.ContentType ?? "application/octet-stream");
         }
-
-
-
     }
 }

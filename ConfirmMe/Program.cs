@@ -10,6 +10,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json.Serialization;
+using QuestPDF.Infrastructure;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -188,6 +190,10 @@ builder.Services.AddCors(options =>
                                 
                       });
 });
+
+
+QuestPDF.Settings.License = LicenseType.Community;
+
 
 var app = builder.Build();
 
