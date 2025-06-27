@@ -131,6 +131,39 @@ namespace ConfirmMe.Services
                 .ToListAsync();
         }
 
+
+        public async Task<List<ApprovalFlow>> GetInboxForUserAsync(string userId)
+        {
+            var allPending = await _context.ApprovalFlows
+                .Where(f => f.ApproverId == userId && f.Status == "Pending")
+                .Include(f => f.ApprovalRequest)
+                    .ThenInclude(r => r.RequestedByUser)
+                .Include(f => f.ApprovalRequest)
+                    .ThenInclude(r => r.ApprovalType)
+                .Include(f => f.ApprovalRequest)
+                    .ThenInclude(r => r.ApprovalFlows)
+                .OrderBy(f => f.OrderIndex)
+                .ToListAsync();
+
+            var filtered = new List<ApprovalFlow>();
+
+            foreach (var flow in allPending)
+            {
+                var requestFlows = flow.ApprovalRequest.ApprovalFlows;
+
+                bool hasPreviousRejected = requestFlows
+                    .Any(p => p.OrderIndex < flow.OrderIndex && p.Status == "Rejected");
+
+                if (!hasPreviousRejected)
+                {
+                    filtered.Add(flow);
+                }
+            }
+
+            return filtered;
+        }
+
+
         //a
         public async Task UpdateAsync(ApprovalFlow flow)
         {

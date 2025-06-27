@@ -128,7 +128,7 @@ namespace ConfirmMe.Controllers
             //};
             //var qrData = JsonSerializer.Serialize(payload);
 
-            string frontendBaseUrl = "https://localhost:32771/approval"; // sesuaikan dengan URL frontend
+            string frontendBaseUrl = "https://localhost:5173/approval-inbox"; // sesuaikan dengan URL frontend
             var qrUrl = $"{frontendBaseUrl}?flowId={flow.Id}&qrToken={qrToken}";
 
             var barcodeImage = _barcodeService.GenerateBarcode(qrUrl, BarcodeFormat.QR_CODE, 300, 300);

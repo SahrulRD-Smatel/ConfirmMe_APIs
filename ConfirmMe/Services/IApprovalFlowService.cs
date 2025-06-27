@@ -11,6 +11,7 @@ namespace ConfirmMe.Services
         Task<List<ApprovalFlow>> GetApprovalFlowsByRequestIdAsync(int ApprovalRequestId);
         Task<List<ApprovalFlow>> GetApprovalFlowsByTypeAsync(string approvalType);
         Task<List<ApprovalFlow>> GetPendingApprovalsForUserAsync(string userId);
+        Task<List<ApprovalFlow>> GetInboxForUserAsync(string userId);
         Task UpdateAsync(ApprovalFlow flow);
         Task<ApprovalFlow> GetByIdAsync(int id);
 
