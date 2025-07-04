@@ -9,11 +9,13 @@ namespace ConfirmMe.Services
     public class UserService : IUserService
     {
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IMapper _mapper;
 
-        public UserService(UserManager<ApplicationUser> userManager, IMapper mapper)
+        public UserService(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IMapper mapper)
         {
             _userManager = userManager;
+            _roleManager = roleManager;
             _mapper = mapper;
         }
 
@@ -29,6 +31,7 @@ namespace ConfirmMe.Services
             return _mapper.Map<UserDto>(user);
         }
 
+
         public async Task<UserDto> CreateUserAsync(CreateUserDto dto)
         {
             var user = new ApplicationUser
@@ -39,17 +42,29 @@ namespace ConfirmMe.Services
                 Role = dto.Role,
                 PositionId = dto.PositionId,
                 IsActive = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                EmailConfirmed = true,
+                PhoneNumber = dto.PhoneNumber
             };
 
+            // Cek apakah role valid
+            if (!await _roleManager.RoleExistsAsync(dto.Role))
+                throw new Exception($"Role '{dto.Role}' tidak ditemukan di sistem.");
+
+            // Buat user
             var result = await _userManager.CreateAsync(user, dto.Password);
             if (!result.Succeeded)
-                throw new System.Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+                throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
 
-            await _userManager.AddToRoleAsync(user, dto.Role);
+            // Assign role
+            var addRoleResult = await _userManager.AddToRoleAsync(user, dto.Role);
+            if (!addRoleResult.Succeeded)
+                throw new Exception("Gagal assign role: " + string.Join(", ", addRoleResult.Errors.Select(e => e.Description)));
 
             return _mapper.Map<UserDto>(user);
         }
+
+
 
         public async Task<bool> UpdateUserAsync(string id, UpdateUserDto dto)
         {

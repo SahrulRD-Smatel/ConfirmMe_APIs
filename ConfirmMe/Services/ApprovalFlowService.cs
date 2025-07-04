@@ -132,6 +132,38 @@ namespace ConfirmMe.Services
         }
 
 
+        //public async Task<List<ApprovalFlow>> GetInboxForUserAsync(string userId)
+        //{
+        //    var allPending = await _context.ApprovalFlows
+        //        .Where(f => f.ApproverId == userId && f.Status == "Pending")
+        //        .Include(f => f.ApprovalRequest)
+        //            .ThenInclude(r => r.RequestedByUser)
+        //        .Include(f => f.ApprovalRequest)
+        //            .ThenInclude(r => r.ApprovalType)
+        //        .Include(f => f.ApprovalRequest)
+        //            .ThenInclude(r => r.ApprovalFlows)
+        //        .OrderBy(f => f.OrderIndex)
+        //        .ToListAsync();
+
+        //    var filtered = new List<ApprovalFlow>();
+
+        //    foreach (var flow in allPending)
+        //    {
+        //        var requestFlows = flow.ApprovalRequest.ApprovalFlows;
+
+        //        bool hasPreviousRejected = requestFlows
+        //            .Any(p => p.OrderIndex < flow.OrderIndex && p.Status == "Rejected");
+
+        //        if (!hasPreviousRejected)
+        //        {
+        //            filtered.Add(flow);
+        //        }
+        //    }
+
+        //    return filtered;
+        //}
+
+
         public async Task<List<ApprovalFlow>> GetInboxForUserAsync(string userId)
         {
             var allPending = await _context.ApprovalFlows
@@ -154,7 +186,13 @@ namespace ConfirmMe.Services
                 bool hasPreviousRejected = requestFlows
                     .Any(p => p.OrderIndex < flow.OrderIndex && p.Status == "Rejected");
 
-                if (!hasPreviousRejected)
+                bool allPreviousApproved = requestFlows
+                    .Where(p => p.OrderIndex < flow.OrderIndex)
+                    .All(p => p.Status == "Approved");
+
+                // ✅ Step sebelumnya tidak boleh ada yang rejected,
+                // dan semua step sebelumnya harus sudah approved
+                if (!hasPreviousRejected && allPreviousApproved)
                 {
                     filtered.Add(flow);
                 }
@@ -162,6 +200,7 @@ namespace ConfirmMe.Services
 
             return filtered;
         }
+
 
 
         //a

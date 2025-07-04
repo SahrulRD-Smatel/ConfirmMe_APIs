@@ -4,12 +4,14 @@ using ConfirmMe.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace ConfirmMe.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "HRD, Admin")]
+
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
@@ -21,6 +23,7 @@ namespace ConfirmMe.Controllers
             _context = context;
         }
 
+        [Authorize(Roles = "HRD, Admin")]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
         {
@@ -28,6 +31,7 @@ namespace ConfirmMe.Controllers
             return Ok(users);
         }
 
+        [Authorize(Roles = "Staff, Manager, HRD, Direktur, Admin")]
         [HttpGet("{id}")]
         public async Task<ActionResult<UserDto>> GetById(string id)
         {
@@ -36,6 +40,7 @@ namespace ConfirmMe.Controllers
             return Ok(user);
         }
 
+        [Authorize(Roles = "HRD, Admin")]
         [HttpPost]
         public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserDto dto)
         {
@@ -46,6 +51,7 @@ namespace ConfirmMe.Controllers
             return CreatedAtAction(nameof(GetById), new { id = createdUser.Id }, createdUser);
         }
 
+        [Authorize(Roles = "HRD, Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(string id, [FromBody] UpdateUserDto dto)
         {
@@ -58,6 +64,7 @@ namespace ConfirmMe.Controllers
             return NoContent();
         }
 
+        [Authorize(Roles = "HRD, Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
@@ -67,6 +74,7 @@ namespace ConfirmMe.Controllers
             return NoContent();
         }
 
+        [Authorize(Roles = "Staff, Manager, HRD, Direktur, Admin")]
         [HttpGet("positions")]
         public async Task<IActionResult> GetPositions()
         {
@@ -76,5 +84,24 @@ namespace ConfirmMe.Controllers
 
             return Ok(positions);
         }
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<ActionResult<UserDto>> GetCurrentUser()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { message = "UserId claim missing", claims = User.Claims.Select(c => new { c.Type, c.Value }) });
+
+            var user = await _userService.GetUserByIdAsync(userId);
+            if (user == null) return NotFound(new { message = "User tidak ditemukan." });
+
+            return Ok(user);
+        }
+
+
+
     }
 }

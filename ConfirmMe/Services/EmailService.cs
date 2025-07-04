@@ -122,14 +122,51 @@ namespace ConfirmMe.Services
 
         public async Task SendApprovalStatusChangedAsync(string toEmail, string fullName, string approvalRequestTitle, string newStatus)
         {
-            var subject = "Approval Status Updated";
+            var subject = $"[ConfirmMe] Approval Request - {newStatus}";
+
+            var statusColor = newStatus switch
+            {
+                "Approved" => "#2ecc71",        // green
+                "Rejected" => "#e74c3c",        // red
+                "Fully Approved" => "#3498db",  // blue
+                "Completed" => "#3498db",
+                _ => "#999999"
+            };
+
             var message = $@"
-                <p>Hi {fullName},</p>
-                <p>The approval status for your request titled '{approvalRequestTitle}' has been updated to: {newStatus}</p>
-                <p>Regards,<br/>ConfirmMe Team</p>";
+                <html>
+                <body style='font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;'>
+                    <div style='max-width: 600px; margin: auto; background: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);'>
+
+                        <div style='text-align: center; margin-bottom: 30px;'>
+                            <img src='https://yourdomain.com/logo.png' alt='ConfirmMe Logo' style='height: 50px;' />
+                        </div>
+
+                        <h2 style='color: #333;'>Hello, {fullName}</h2>
+                        <p>This is an update about your approval request:</p>
+                        <p><strong>Title:</strong> {approvalRequestTitle}</p>
+                        <p><strong>Status:</strong> <span style='color: {statusColor}; font-weight: bold;'>{newStatus}</span></p>
+
+                        <p style='margin-top: 20px;'>You can view the details by logging into the ConfirmMe platform.</p>
+
+                        <div style='text-align: center; margin-top: 30px;'>
+                            <a href='https://your-app-url.com/approval-requests' 
+                               style='background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;'>
+                                View Request
+                            </a>
+                        </div>
+
+                        <p style='margin-top: 40px; font-size: 12px; color: #888; text-align: center;'>
+                            This is an automated message from ConfirmMe System. Please do not reply directly to this email.<br/>
+                            &copy; 2025 ConfirmMe, All rights reserved.
+                        </p>
+                    </div>
+                </body>
+                </html>";
 
             await SendEmailAsync(toEmail, subject, message);
         }
+
 
         public static async Task CheckSmtpConnectivity()
         {

@@ -9,6 +9,7 @@
         public int PositionId { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
+        public string PhoneNumber { get; set; }
     }
 
     public class CreateUserDto
@@ -18,6 +19,7 @@
         public string Password { get; set; }
         public string Role { get; set; }
         public int PositionId { get; set; }
+        public string PhoneNumber { get; set; }
     }
 
     public class UpdateUserDto
@@ -26,5 +28,6 @@
         public string Role { get; set; }
         public int PositionId { get; set; }
         public bool IsActive { get; set; }
+        public string PhoneNumber { get; set; }
     }
 }
