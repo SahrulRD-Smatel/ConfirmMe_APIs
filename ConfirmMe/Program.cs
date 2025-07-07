@@ -221,12 +221,17 @@ if (app.Environment.IsDevelopment())
 //    await DbSeeder.Seed(context, services); // <== panggil seeder di sini
 //}
 
+app.UseRouting();
+
 app.UseCors(MyAllowSpecificOrigins);
 app.UseHttpsRedirection();
 
 app.UseAuthentication(); // WAJIB sebelum UseAuthorization
 app.UseAuthorization();
 
-app.MapControllers();
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapControllers();
+});
 
 app.Run();
