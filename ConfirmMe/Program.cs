@@ -221,8 +221,9 @@ if (app.Environment.IsDevelopment())
 //    await DbSeeder.Seed(context, services); // <== panggil seeder di sini
 //}
 
-app.UseCors(MyAllowSpecificOrigins);
 app.UseRouting();
+
+app.UseCors(MyAllowSpecificOrigins);
 
 // Jangan pakai HTTPS redirection kalau belum pakai SSL
 // app.UseHttpsRedirection(); <-- NONAKTIF
