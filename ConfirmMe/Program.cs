@@ -199,15 +199,13 @@ var app = builder.Build();
 
 // Middleware
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConfirmMe API V1");
-        c.RoutePrefix = string.Empty;
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConfirmMe API V1");
+    c.RoutePrefix = string.Empty; // agar swagger muncul di root (http://localhost:8080/)
+});
+
 
 //Noted takut lupa DBSeeder ini jalan juga di production kalo mau bungkus di envisdevelopment kalo mau jalan di development aja
 //using (var scope = app.Services.CreateScope())
