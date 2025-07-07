@@ -8,23 +8,20 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using QuestPDF.Infrastructure;
 using System.Text;
 using System.Text.Json.Serialization;
-using QuestPDF.Infrastructure;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
 DotNetEnv.Env.Load();
 
-// Add services to the container
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-    }); ;
+    });
 
-// Register custom services
 builder.Services.AddScoped<IApprovalRequestService, ApprovalRequestService>();
 builder.Services.AddScoped<IApprovalFlowService, ApprovalFlowService>();
 builder.Services.AddScoped<IBarcodeService, BarcodeService>();
@@ -32,11 +29,9 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAuditTrailService, AuditTrailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
-
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddAutoMapper(typeof(MappingProfile));
 builder.Services.AddScoped<ILetterService, LetterService>();
-
+builder.Services.AddAutoMapper(typeof(MappingProfile));
 
 builder.Configuration
     .SetBasePath(Directory.GetCurrentDirectory())
@@ -45,12 +40,9 @@ builder.Configuration
 
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
-
-// Configure EF Core + SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Add ASP.NET Core Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
     options.User.RequireUniqueEmail = true;
@@ -58,7 +50,6 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
-// JWT Authentication
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -75,7 +66,6 @@ builder.Services.AddAuthentication(options =>
         throw new ArgumentNullException("JwtSettings:SecretKey", "JWT secret key must be provided.");
     }
 
-    // Decode dari Base64 string
     var keyBytes = Convert.FromBase64String(secretKey);
 
     options.TokenValidationParameters = new TokenValidationParameters
@@ -86,10 +76,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
         ValidAudience = builder.Configuration["JwtSettings:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(secretKey))
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
     };
 
-    // Mengambil token dari cookie jika tidak ada Authorization header
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
@@ -101,26 +90,15 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         }
     };
-
 });
 
-// Add Authorization Policies for Role-based Access Control
 builder.Services.AddAuthorization(options =>
 {
-    // Policy for HRD or higher roles
-    options.AddPolicy("IsHRDOrAbove", policy =>
-        policy.RequireRole("HRD", "Manager", "Direktur"));
-
-    // Policy for Manager or higher roles
-    options.AddPolicy("IsManagerOrAbove", policy =>
-        policy.RequireRole("Manager", "Direktur"));
-
-    // Policy for Director only
-    options.AddPolicy("IsDirector", policy =>
-        policy.RequireRole("Direktur"));
+    options.AddPolicy("IsHRDOrAbove", policy => policy.RequireRole("HRD", "Manager", "Direktur"));
+    options.AddPolicy("IsManagerOrAbove", policy => policy.RequireRole("Manager", "Direktur"));
+    options.AddPolicy("IsDirector", policy => policy.RequireRole("Direktur"));
 });
 
-// Swagger (OpenAPI) with JWT support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -131,13 +109,12 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API for ConfirmMe app"
     });
 
-    // Mengonfigurasi Swagger untuk memperlakukan Approvers sebagai array
     c.MapType<List<ApproverDto>>(() => new OpenApiSchema
     {
-        Type = "array", // Menandakan bahwa ini adalah array
+        Type = "array",
         Items = new OpenApiSchema
         {
-            Type = "object", // Menandakan bahwa item di dalam array adalah objek
+            Type = "object",
             Properties =
             {
                 { "approverId", new OpenApiSchema { Type = "string" } },
@@ -176,28 +153,42 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddHttpContextAccessor();
 
-//CORS
+// ✅ Tambahan policy CORS
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(name: MyAllowSpecificOrigins,
-                      policy =>
-                      {
-                          policy.WithOrigins("http://103.176.78.120", "http://103.176.78.120:80")
-                                .AllowCredentials() 
-                                .AllowAnyHeader()
-                                .AllowAnyMethod();
-                                
-                      });
+    options.AddPolicy(name: MyAllowSpecificOrigins, policy =>
+    {
+        policy.WithOrigins("http://103.176.78.120", "http://103.176.78.120:80")
+              .AllowCredentials()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
-
 
 QuestPDF.Settings.License = LicenseType.Community;
 
-
 var app = builder.Build();
 
-// Middleware
+// ✅ Tangani OPTIONS request agar CORS preflight sukses
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 204;
+        context.Response.Headers.Add("Access-Control-Allow-Origin", "http://103.176.78.120");
+        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+        await context.Response.CompleteAsync();
+        return;
+    }
+
+    await next();
+});
+
+// ✅ Pindahkan ke atas sebelum HTTPS/Auth
+app.UseCors(MyAllowSpecificOrigins);
 
 if (app.Environment.IsDevelopment())
 {
@@ -209,21 +200,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-//Noted takut lupa DBSeeder ini jalan juga di production kalo mau bungkus di envisdevelopment kalo mau jalan di development aja
-//using (var scope = app.Services.CreateScope())
-//{
-//    var services = scope.ServiceProvider;
-//    var context = services.GetRequiredService<AppDbContext>();
-
-//    await DbSeeder.Seed(context, services); // <== panggil seeder di sini
-//}
-
-app.UseCors(MyAllowSpecificOrigins);
 app.UseHttpsRedirection();
-
-app.UseAuthentication(); // WAJIB sebelum UseAuthorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
 app.Run();
