@@ -159,33 +159,19 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins, policy =>
     {
-        policy.WithOrigins("http://103.176.78.120", "http://103.176.78.120:80")
-              .AllowCredentials()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy
+            .WithOrigins("http://103.176.78.120")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
+
 
 QuestPDF.Settings.License = LicenseType.Community;
 
 var app = builder.Build();
 
-// ✅ Tangani OPTIONS request agar CORS preflight sukses
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.StatusCode = 204;
-        context.Response.Headers.Add("Access-Control-Allow-Origin", "http://103.176.78.120");
-        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
-        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
-        await context.Response.CompleteAsync();
-        return;
-    }
-
-    await next();
-});
 
 // ✅ Pindahkan ke atas sebelum HTTPS/Auth
 app.UseCors(MyAllowSpecificOrigins);
