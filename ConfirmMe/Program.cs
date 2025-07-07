@@ -198,15 +198,30 @@ var app = builder.Build();
 
 // Middleware
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConfirmMe API V1");
+    c.RoutePrefix = string.Empty;
+});
+
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConfirmMe API V1");
-        c.RoutePrefix = string.Empty;
-    });
-}
+        context.Response.Headers.Add("Access-Control-Allow-Origin", "http://103.176.78.120");
+        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+        context.Response.StatusCode = 204;
+        await context.Response.CompleteAsync();
+        return;
+    }
+
+    await next();
+});
+
 
 
 //Noted takut lupa DBSeeder ini jalan juga di production kalo mau bungkus di envisdevelopment kalo mau jalan di development aja
