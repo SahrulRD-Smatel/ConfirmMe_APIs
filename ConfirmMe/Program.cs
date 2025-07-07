@@ -224,7 +224,9 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 
 app.UseCors(MyAllowSpecificOrigins);
-app.UseHttpsRedirection();
+
+// Jangan pakai HTTPS redirection kalau belum pakai SSL
+// app.UseHttpsRedirection(); <-- NONAKTIF
 
 app.UseAuthentication(); // WAJIB sebelum UseAuthorization
 app.UseAuthorization();
