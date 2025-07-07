@@ -183,11 +183,10 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: MyAllowSpecificOrigins,
         policy =>
         {
-            policy
-                .SetIsOriginAllowed(origin => true) // ⬅️ tambahkan ini
-                .AllowCredentials()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
+            policy.WithOrigins("http://confirmme.my.id", "http://103.176.78.120")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
         });
 });
 
