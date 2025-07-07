@@ -181,13 +181,14 @@ var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins,
-        policy =>
-        {
-            policy.WithOrigins("http://confirmme.my.id", "http://103.176.78.120")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
-        });
+                      policy =>
+                      {
+                          policy.WithOrigins("http://103.176.78.120", "http://103.176.78.120:80")
+                                .AllowCredentials() 
+                                .AllowAnyHeader()
+                                .AllowAnyMethod();
+                                
+                      });
 });
 
 
@@ -198,31 +199,15 @@ var app = builder.Build();
 
 // Middleware
 
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConfirmMe API V1");
-    c.RoutePrefix = string.Empty;
-});
-
-
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
     {
-        context.Response.Headers.Add("Access-Control-Allow-Origin", "http://103.176.78.120");
-        context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        context.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
-        context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
-        context.Response.StatusCode = 204;
-        await context.Response.CompleteAsync();
-        return;
-    }
-
-    await next();
-});
-
-
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ConfirmMe API V1");
+        c.RoutePrefix = string.Empty;
+    });
+}
 
 //Noted takut lupa DBSeeder ini jalan juga di production kalo mau bungkus di envisdevelopment kalo mau jalan di development aja
 //using (var scope = app.Services.CreateScope())
@@ -233,19 +218,12 @@ app.Use(async (context, next) =>
 //    await DbSeeder.Seed(context, services); // <== panggil seeder di sini
 //}
 
-app.UseRouting();
-
 app.UseCors(MyAllowSpecificOrigins);
-
-// Jangan pakai HTTPS redirection kalau belum pakai SSL
-// app.UseHttpsRedirection(); <-- NONAKTIF
+app.UseHttpsRedirection();
 
 app.UseAuthentication(); // WAJIB sebelum UseAuthorization
 app.UseAuthorization();
 
-app.UseEndpoints(endpoints =>
-{
-    endpoints.MapControllers();
-});
+app.MapControllers();
 
 app.Run();
