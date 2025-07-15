@@ -22,8 +22,8 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: 📦 Restore Dependencies
-        run: dotnet restore
+        run: dotnet restore ./ConfirmMe.sln
 
       - name: 🔨 Build Project
-        run: dotnet build --no-restore
+        run: dotnet build ./ConfirmMe.sln --no-restore
 
