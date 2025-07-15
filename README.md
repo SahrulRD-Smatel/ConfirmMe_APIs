@@ -1,6 +1,6 @@
 # ✅ ConfirmMe Backend
 
-![.NET](https://img.shields.io/badge/.NET%207-success?logo=dotnet)
+![.NET](https://img.shields.io/badge/.NET%208-success?logo=dotnet)
 ![Docker](https://img.shields.io/badge/containerized-docker-blue)
 ![CI/CD](https://github.com/SahrulRD-Smatel/ConfirmMe_APIs/actions/workflows/dotnet.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-informational)
