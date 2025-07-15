@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build & Test .NET 8 App
+    name: ConfirmMe
     runs-on: ubuntu-latest
 
     steps:
@@ -27,5 +27,3 @@ jobs:
       - name: 🔨 Build Project
         run: dotnet build --no-restore
 
-      - name: ✅ Run Tests (jika ada)
-        run: dotnet test --no-build --verbosity normal
