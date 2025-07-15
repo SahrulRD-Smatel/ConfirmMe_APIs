@@ -48,4 +48,3 @@ ConfirmMe/
 ├── Program.cs
 ├── Dockerfile
 ├── nginx.conf
-├── .github/workflows/dotnet.yml
